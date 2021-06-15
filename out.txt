@@ -1,1 +1,0 @@
-Error : Failed to retrieve the value of MultisessionFuture (<none>) from cluster RichSOCKnode #2 (PID 12984 on localhost СlocalhostТ). The reason reported was Сне могу разместить вектор размером 14 KbТ. Post-mortem diagnostic: A process with this PID exists, which suggests that the localhost worker is still alive.
