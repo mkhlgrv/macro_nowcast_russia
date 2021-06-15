@@ -137,10 +137,11 @@ train.model <- function(model = 'rf',
     model_fit <- randomForest(x = X.train,
                               y = y.train,
                               metric = "RMSE",
-                              ntree = 500,
-                              nodesize =c(3,4,5, 6),
+                              ntree = 2000,
+                              nodesize =c(3,5,7),
                               replace = TRUE,
-                              mtry = floor((nrow(df)-2)/3))
+                              mtry = floor((nrow(df)-2)/3),
+                              corr.bias=TRUE,)
     
     
     
@@ -166,8 +167,8 @@ train.model <- function(model = 'rf',
   else if(model == 'elnet'){
     tune_grid <- expand.grid(
       # .alpha = seq(0,1, by = 0.1),
-      .alpha = c(0,0.5,1),
-      .lambda = seq(0.1, 0.001,length.out = 100))
+      .alpha = c(0.5),
+      .lambda = seq(0.1, 0.00000000001,length.out = 500))
     model_fit <- train(x=X.train,
                        y=y.train,
                        method = "glmnet",
