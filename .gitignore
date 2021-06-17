@@ -38,4 +38,4 @@ rsconnect/
 .Renviron
 plot
 out.txt
-out.RData
+out_copy.RData
