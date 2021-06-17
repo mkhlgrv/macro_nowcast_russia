@@ -9,6 +9,7 @@ try({
   for(iter in 1:24){
     out[[iter]] <- expand.grid(
       model = c('rf', 'boost','lasso', 'ridge',
+                "ar", "arx",
                 'knn', 'svm', "bagging"),
       target = c('gdp_real','cons_real',
                  'invest_real',
@@ -94,7 +95,9 @@ out$target %>% unique() %>%
             group_by(model, week_n, target) %>%
             summarise(rmse = mean((y_true-y_pred)^2)) %>%
             ggplot(aes(x = week_n, y = rmse))+
-            geom_bar(stat = "identity", fill='cornflowerblue', position = position_dodge())+
+            geom_text(aes(label = paste0(round(rmse/rmse_rw_full*100,1), " %")),
+                      stat = "identity",position = position_dodge(width = 1),
+                      vjust = -0.5, size = 2)+
             geom_abline(slope = 0, intercept = rmse_rw_full, color = "darkgreen", size =1)+
             facet_wrap(vars(model))+
             labs(y = "rmse", title = targeti, subtitle = "RMSE (2015Q1-2020Q4)")+
@@ -108,6 +111,9 @@ out$target %>% unique() %>%
             summarise(rmse = mean((y_true-y_pred)^2)) %>%
             ggplot(aes(x = week_n, y = rmse), fill='cornflowerblue')+
             geom_bar(stat = "identity", fill='cornflowerblue', position = position_dodge())+
+            geom_text(aes(label = paste0(round(rmse/rmse_rw_19*100,1), " %")),
+                      stat = "identity",position = position_dodge(width = 1),
+                      vjust = -0.5, size = 2)+
             geom_abline(slope = 0, intercept = rmse_rw_19, color = "darkgreen", size =1)+
             facet_wrap(vars(model))+
             labs(y = "rmse", title = targeti, subtitle = "RMSE (2015Q1-2019Q4)")+
