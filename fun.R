@@ -130,157 +130,182 @@ train.model <- function(model = 'rf',
   
   y.test <- df$y[rep(test_n,2)] %>% as.numeric
   
+  if(model %in% c('ar', 'arx')){
+    if(model == 'ar'){
+      
+      
+      model_fit <- forecast::auto.arima(y.train, 
+                                        d=0, max.q = 0)
+      pred <- forecast::forecast(model_fit) %>%
+        .$mean %>%
+        as.numeric()
+      
+      
+      
+    } else if(model == 'arx'){
+      model_fit <- forecast::auto.arima(y.train,
+                                        xreg = X.train[,which(colnames(X.train) %in% c("oil", "oil_lag"))],
+                                        d=0, max.q = 0)
+      pred <- forecast::forecast(model_fit,
+                                 xreg = X.test[,which(colnames(X.test) %in% c("oil", "oil_lag"))]) %>%
+        .$mean %>%
+        as.numeric()
+    }
+  } else{
+    if (model == 'rf'){
+      
+      model_fit <- randomForest(x = X.train,
+                                y = y.train,
+                                metric = "RMSE",
+                                ntree = 2000,
+                                nodesize =c(3,5,7),
+                                replace = TRUE,
+                                mtry = floor((nrow(df)-2)/3),
+                                corr.bias=TRUE,)
+      
+      
+      
+    } else if (model == 'boost'){
+      
+      tune_grid <- expand.grid(nrounds = c(20,50,100),
+                               max_depth = c(4,5, 6),
+                               eta = c(0.1,0.2, 0.3),
+                               gamma = 0,
+                               colsample_bytree = 0.33,
+                               min_child_weight = 1,
+                               subsample = 1)
+      
+      
+      model_fit <- train(x = X.train,
+                         y = y.train,
+                         method = "xgbTree",
+                         metric = "RMSE",
+                         tuneGrid = tune_grid,)
+      
+      
+    }
+    else if(model == 'elnet'){
+      tune_grid <- expand.grid(
+        # .alpha = seq(0,1, by = 0.1),
+        .alpha = c(0.5),
+        .lambda = seq(0.1, 0.00000000001,length.out = 500))
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "glmnet",
+                         metric = "RMSE",
+                         tuneGrid =tune_grid
+      )
+      
+      
+      
+    }else if(model == 'lasso'){
+      tc <- trainControl(method = "repeatedcv",
+                         number = 10,
+                         repeats = 3,
+                         search = 'grid')
+      tune_grid <- expand.grid(
+        # .alpha = seq(0,1, by = 0.1),
+        .alpha = c(1),
+        .lambda = seq(0.1, 0.00000000001,length.out = 500))
+      
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "glmnet",
+                         metric = "RMSE",
+                         tuneGrid =tune_grid,
+                         trControl = tc
+      )
+      
+      
+      
+      
+    }
+    else if(model == 'ridge'){
+      tc <- trainControl(method = "repeatedcv",
+                         number = 10,
+                         repeats = 3,
+                         search = 'grid')
+      tune_grid <- expand.grid(
+        # .alpha = seq(0,1, by = 0.1),
+        .alpha = c(0),
+        .lambda = seq(0.1, 0.00000000001,length.out = 500))
+      
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "glmnet",
+                         metric = "RMSE",
+                         tuneGrid =tune_grid,
+                         trControl = tc
+      )
+      
+      
+      
+      
+    }
+    
+    else if(model == 'svm'){
+      tc <- trainControl(method = "repeatedcv",
+                         number = 10,
+                         repeats = 3,
+                         search = 'grid')
+      
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "svmLinear",
+                         metric = "RMSE",
+                         tuneLength = 100,
+                         trControl = tc
+      )
+      
+      
+      
+      
+    }
+    
+    else if(model == 'knn'){
+      tc <- trainControl(method = "repeatedcv",
+                         number = 10,
+                         repeats = 3,
+                         search = 'grid')
+      
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "knn",
+                         metric = "RMSE",
+                         tuneLength = 100,
+                         trControl = tc
+      )
+      
+      
+      
+      
+    }
+    else if(model == 'bagging'){
+      tc <- trainControl(method = "repeatedcv",
+                         number = 10,
+                         repeats = 3,
+                         search = 'grid')
+      
+      model_fit <- train(x=X.train,
+                         y=y.train,
+                         method = "treebag",
+                         metric = "RMSE",
+                         tuneLength = 100,
+                         trControl = tc
+      )
+      
+      
+      
+      
+    }
+    
+    
+    pred <- predict(model_fit, newdata = X.test) %>%
+      as.numeric  
+    
+  }
   
-  
-  if (model == 'rf'){
-    
-    model_fit <- randomForest(x = X.train,
-                              y = y.train,
-                              metric = "RMSE",
-                              ntree = 2000,
-                              nodesize =c(3,5,7),
-                              replace = TRUE,
-                              mtry = floor((nrow(df)-2)/3),
-                              corr.bias=TRUE,)
-    
-    
-    
-  } else if (model == 'boost'){
-    
-    tune_grid <- expand.grid(nrounds = c(20,50,100),
-                             max_depth = c(4,5, 6),
-                             eta = c(0.1,0.2, 0.3),
-                             gamma = 0,
-                             colsample_bytree = 0.33,
-                             min_child_weight = 1,
-                             subsample = 1)
-    
-    
-    model_fit <- train(x = X.train,
-                       y = y.train,
-                       method = "xgbTree",
-                       metric = "RMSE",
-                       tuneGrid = tune_grid,)
-    
-    
-  }
-  else if(model == 'elnet'){
-    tune_grid <- expand.grid(
-      # .alpha = seq(0,1, by = 0.1),
-      .alpha = c(0.5),
-      .lambda = seq(0.1, 0.00000000001,length.out = 500))
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "glmnet",
-                       metric = "RMSE",
-                       tuneGrid =tune_grid
-    )
-    
-    
-    
-  }else if(model == 'lasso'){
-    tc <- trainControl(method = "repeatedcv",
-                       number = 10,
-                       repeats = 3,
-                       search = 'grid')
-    tune_grid <- expand.grid(
-      # .alpha = seq(0,1, by = 0.1),
-      .alpha = c(1),
-      .lambda = seq(0.1, 0.00000000001,length.out = 500))
-    
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "glmnet",
-                       metric = "RMSE",
-                       tuneGrid =tune_grid,
-                       trControl = tc
-    )
-    
-    
-    
-    
-  }
-  else if(model == 'ridge'){
-    tc <- trainControl(method = "repeatedcv",
-                       number = 10,
-                       repeats = 3,
-                       search = 'grid')
-    tune_grid <- expand.grid(
-      # .alpha = seq(0,1, by = 0.1),
-      .alpha = c(0),
-      .lambda = seq(0.1, 0.00000000001,length.out = 500))
-    
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "glmnet",
-                       metric = "RMSE",
-                       tuneGrid =tune_grid,
-                       trControl = tc
-    )
-    
-    
-    
-    
-  }
-  
-  else if(model == 'svm'){
-    tc <- trainControl(method = "repeatedcv",
-                       number = 10,
-                       repeats = 3,
-                       search = 'grid')
-    
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "svmLinear",
-                       metric = "RMSE",
-                       tuneLength = 100,
-                       trControl = tc
-    )
-    
-    
-    
-    
-  }
-  
-  else if(model == 'knn'){
-    tc <- trainControl(method = "repeatedcv",
-                       number = 10,
-                       repeats = 3,
-                       search = 'grid')
-    
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "knn",
-                       metric = "RMSE",
-                       tuneLength = 100,
-                       trControl = tc
-    )
-    
-    
-    
-    
-  }
-  else if(model == 'bagging'){
-    tc <- trainControl(method = "repeatedcv",
-                       number = 10,
-                       repeats = 3,
-                       search = 'grid')
-    
-    model_fit <- train(x=X.train,
-                       y=y.train,
-                       method = "treebag",
-                       metric = "RMSE",
-                       tuneLength = 100,
-                       trControl = tc
-    )
-    
-    
-    
-    
-  }
-
-  pred <- predict(model_fit, newdata = X.test) %>%
-    as.numeric  
+  print(pred[1] %>% str)
   
   
   tibble(
@@ -292,10 +317,6 @@ train.model <- function(model = 'rf',
     y_pred = pred[1]
   )
 }
-
-
-
-
 
 
 
