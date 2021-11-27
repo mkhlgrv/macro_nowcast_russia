@@ -58,7 +58,7 @@ run.job <- function(job_name = "Job 1",
           stringsAsFactors = FALSE) %>%
           
           filter(!(target %in% c("export_usd", "import_usd") & week_n > 15)) %>%
-          dplyr::sample_n(size = 1) %>%
+          # dplyr::sample_n(size = 1) %>%
           split(seq(1:nrow(.))) %>%
 
           purrr::map_dfr(function(x){
