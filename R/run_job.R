@@ -106,7 +106,8 @@ run.job <- function(job_name = "Job 1",
                     ),
                     parse_mode = "Markdown"
     )
-    bot$sendDocument(chat_id, document = log_file)
+    try(bot$sendDocument(chat_id, document = log_file))
+    
     
   }
 
