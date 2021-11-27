@@ -1,0 +1,4 @@
+Скопировать этот текст в терминал R
+setwd("~/macro_forecast_russia")
+source("R/run_job.R", encoding="utf-8")
+run.job(date_sample = c(2:8))

@@ -1,6 +1,6 @@
 get.next.weekday <- function(date, day, lead=0){
   date <- as.Date(date)
-  out <- Date()
+  out <- lubridate::Date()
   for(i in 1:length(date)){
     dates <- seq(date[i]+ 7*(lead), date[i] + 7*(lead+1) - 1, by="days")
     out[i] <- dates[wday(dates)==day]
@@ -19,7 +19,7 @@ get.available.observation <- function(week_n, lag){
   c(previuos_q, current_q)
 }
 get.actual.observation <- function(week_n, quarter_lag = 0){
-  import('data/transformed/desc.xlsx', sheet = 1, skip=0) %>%
+  import('data/desc.xlsx', sheet = 1, skip=0) %>%
     .[c('name', 'lag')] %>%
     group_by(name) %>%
     mutate(available.observation = 
@@ -34,7 +34,7 @@ get.actual.observation <- function(week_n, quarter_lag = 0){
 get.df <- function(start_training_date=as.Date('2007-04-01'),
                    end_training_date=as.Date('2014-10-01'),
                    testing_date =as.Date('2015-01-01'),
-                   week_n=0, # от недели под номером -4 до 28
+                   week_n=0, # РѕС‚ РЅРµРґРµР»Рё РїРѕРґ РЅРѕРјРµСЂРѕРј -4 РґРѕ 28
                    target,
                    predictor_group=NA){
   df_dates <- c(seq(as.Date(start_training_date),as.Date(end_training_date),
@@ -46,7 +46,7 @@ get.df <- function(start_training_date=as.Date('2007-04-01'),
     mutate(variable = 'y')
   
   
-  pred_data <- import('data/transformed/desc.xlsx', sheet=1)[c('name', 'is_noise','is_sna')]
+  pred_data <- import('data/desc.xlsx', sheet=1)[c('name', 'is_noise','is_sna')]
   if(predictor_group=='All'){
     predictors <- pred_data %>% pull(name)
   } else if(predictor_group=='non_sna'){
@@ -86,7 +86,7 @@ get.df <- function(start_training_date=as.Date('2007-04-01'),
     filter(date
            %in% as.Date(df_dates %>%
                           get.next.weekday(day = 6, lead = 0)))%>%
-    dcast(date~variable)
+    reshape2::dcast(date~variable)
   
 }
 
@@ -99,7 +99,6 @@ train.model <- function(model = 'rf',
                         end_training_date = as.Date('2014-10-01'),
                         testing_date = as.Date('2015-01-01'),
                         predictor_group = 'All'){
-  
   
   df <- get.df(target = target,
                predictor_group = predictor_group,
@@ -116,12 +115,13 @@ train.model <- function(model = 'rf',
   
   
   
-  # матрицы с 1 строкой не воспринимаются как матрицы, поэтому 
-  # приходится повторять тестовую матрицу
+  # РјР°С‚СЂРёС†С‹ СЃ 1 СЃС‚СЂРѕРєРѕР№ РЅРµ РІРѕСЃРїСЂРёРЅРёРјР°СЋС‚СЃСЏ РєР°Рє РјР°С‚СЂРёС†С‹, РїРѕСЌС‚РѕРјСѓ 
+  # РїСЂРёС…РѕРґРёС‚СЃСЏ РїРѕРІС‚РѕСЂСЏС‚СЊ С‚РµСЃС‚РѕРІСѓСЋ РјР°С‚СЂРёС†Сѓ
   train_n <- 1:(nrow(df)-1)
   test_n <- nrow(df)
-  
+
   X.matrix <- model.matrix(y~0+., data = df[,-1])
+
   X.train <- X.matrix[train_n,]
   
   X.test <- X.matrix[rep(test_n,2),]
@@ -144,10 +144,10 @@ train.model <- function(model = 'rf',
       
     } else if(model == 'arx'){
       model_fit <- forecast::auto.arima(y.train,
-                                        xreg = X.train[,which(colnames(X.train) %in% c("oil", "oil_lag"))],
+                                        xreg = X.train[,which(colnames(X.train) %in% c("DCOILBRENTEU", "DCOILBRENTEU_lag"))],
                                         d=0, max.q = 0)
       pred <- forecast::forecast(model_fit,
-                                 xreg = X.test[,which(colnames(X.test) %in% c("oil", "oil_lag"))]) %>%
+                                 xreg = X.test[,which(colnames(X.test) %in% c("DCOILBRENTEU", "DCOILBRENTEU_lag"))]) %>%
         .$mean %>%
         as.numeric()
     }
@@ -244,10 +244,11 @@ train.model <- function(model = 'rf',
     }
     
     else if(model == 'svm'){
-      tc <- trainControl(method = "repeatedcv",
-                         number = 10,
-                         repeats = 3,
-                         search = 'grid')
+      tc <- trainControl(method = "cv",
+                         number = 10)
+      
+      tune_grid <- expand.grid(
+        C = seq(0.1,1,0.1 ))
       
       model_fit <- train(x=X.train,
                          y=y.train,
@@ -263,16 +264,15 @@ train.model <- function(model = 'rf',
     }
     
     else if(model == 'knn'){
-      tc <- trainControl(method = "repeatedcv",
-                         number = 10,
-                         repeats = 3,
-                         search = 'grid')
-      
+      tc <- trainControl(method = "cv",
+                         number = 10)
+      tune_grid <- expand.grid(
+        k = 5:10)
       model_fit <- train(x=X.train,
                          y=y.train,
                          method = "knn",
                          metric = "RMSE",
-                         tuneLength = 100,
+                         tuneLength = 5,
                          trControl = tc
       )
       
@@ -305,7 +305,6 @@ train.model <- function(model = 'rf',
     
   }
   
-  print(pred[1] %>% str)
   
   
   tibble(
@@ -317,13 +316,14 @@ train.model <- function(model = 'rf',
     y_pred = pred[1]
   )
 }
-
-
-
-
-# 2007Q3
-start_training_date <- as.Date('2007-04-01')
-# 2014Q4 -- 2020Q1
-end_training_dates <- seq(as.Date('2014-10-01'),as.Date('2020-07-01'), by = 'quarter')
-# 2015Q1 -- 202Q2
-end_testing_dates <- seq(as.Date('2015-01-01'),as.Date('2020-10-01'), by = 'quarter')
+collect_jobs_out <- function(out_import = "out/", out_export = ""){
+  tmp <- tibble()
+  for(filei in list.files(path = out_import, pattern = ".RData")){
+    load(filei)
+    tmp <- rbind(tmp, out)
+  }
+  out <- tmp
+  save(out, file=paste0(out_export,"out.Rdata"))
+  
+  
+}

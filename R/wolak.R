@@ -1,14 +1,16 @@
 wolak_test <-
   expand.grid(
-                          model = c('rf', 'boost', 'elnet'),
-                          target = c('gdp_real','cons_real',
-                                     'invest_real',
-                                     'invest_fixed_capital_real', 'export_real', 'import_real',
-                                     'export_usd', 'import_usd')) %>%
-  
-  # expand.grid(predictor_group = 'All',
-  #             model = c('elnet'),
-  #             target = c('gdp_real')) %>%
+                          model = c('rf', 'boost','lasso', 'ridge',
+  #                                   # "arx",
+  #                                   'knn',
+    'svm', "bagging"),
+                          target = c(
+                            # 'gdp_real','cons_real',
+                            #          'invest_real',
+                            #          'invest_fixed_capital_real', 'export_real',
+                                     'import_real',
+                                     'export_usd',
+                                     'import_usd')) %>%
   split(seq(1:nrow(.))) %>%
 map_dfr(function(x){
   
@@ -38,7 +40,7 @@ map_dfr(function(x){
   temp <- (pred_mat[,2:(max_h)])^2-(pred_mat[,1:(max_h-1)])^2
   res2 <- wolak(temp, difference=TRUE, increasing	=FALSE)[1]
   
-  # 2) Monotonicity of Covariance Between the Forecast
+  # 3) Monotonicity of Covariance Between the Forecast
   # and the Target Variable
   y_hat <- true_mat*pred_mat
   temp <- y_hat[,1:(max_h-1)] - y_hat[,2:(max_h)]
@@ -54,7 +56,7 @@ map_dfr(function(x){
   
 })
 wolak_test %>%
-  mutate(test_n = rep(c(1,2,3), 24)) %>%
+  mutate(test_n = rep(c(1,2,3), 56)) %>%
   dcast(target+test_n~model, value.var = 'p_value') %>%
-  export('chamber/mono_test_2.xlsx')
+  export('mono_test.xlsx')
 
