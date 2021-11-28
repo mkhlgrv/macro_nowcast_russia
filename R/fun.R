@@ -1,3 +1,4 @@
+
 get.next.weekday <- function(date, day, lead=0){
   date <- as.Date(date)
   out <- lubridate::Date()
@@ -8,9 +9,6 @@ get.next.weekday <- function(date, day, lead=0){
   
   out
 }
-
-
-
 
 
 get.available.observation <- function(week_n, lag){
@@ -36,9 +34,13 @@ get.df <- function(start_training_date=as.Date('2007-04-01'),
                    testing_date =as.Date('2015-01-01'),
                    week_n=0, # РѕС‚ РЅРµРґРµР»Рё РїРѕРґ РЅРѕРјРµСЂРѕРј -4 РґРѕ 28
                    target,
-                   predictor_group=NA){
+                   predictor_group=NA,
+                   dates_to_remove = NULL){
   df_dates <- c(seq(as.Date(start_training_date),as.Date(end_training_date),
                     by = '1 quarter'), testing_date)
+  if(!is.null(dates_to_remove)){
+    df_dates <- df_dates[which(!df_dates%in%dates_to_remove)]
+  }
   target_data <- stat_data %>%
     filter(variable==target) %>%  
     filter(h == max(h))%>%
@@ -98,25 +100,23 @@ train.model <- function(model = 'rf',
                         start_training_date= as.Date('2007-04-01'),
                         end_training_date = as.Date('2014-10-01'),
                         testing_date = as.Date('2015-01-01'),
-                        predictor_group = 'All'){
+                        predictor_group = 'All',
+                        dates_to_remove = NULL){
   
   df <- get.df(target = target,
                predictor_group = predictor_group,
                week_n = week_n,
                start_training_date =start_training_date ,
                end_training_date = end_training_date,
-               testing_date = testing_date
+               testing_date = testing_date, 
+               dates_to_remove = dates_to_remove
   )
   
   
   
   
   
-  
-  
-  
-  # РјР°С‚СЂРёС†С‹ СЃ 1 СЃС‚СЂРѕРєРѕР№ РЅРµ РІРѕСЃРїСЂРёРЅРёРјР°СЋС‚СЃСЏ РєР°Рє РјР°С‚СЂРёС†С‹, РїРѕСЌС‚РѕРјСѓ 
-  # РїСЂРёС…РѕРґРёС‚СЃСЏ РїРѕРІС‚РѕСЂСЏС‚СЊ С‚РµСЃС‚РѕРІСѓСЋ РјР°С‚СЂРёС†Сѓ
+
   train_n <- 1:(nrow(df)-1)
   test_n <- nrow(df)
 
@@ -316,14 +316,34 @@ train.model <- function(model = 'rf',
     y_pred = pred[1]
   )
 }
-collect_jobs_out <- function(out_import = "out/", out_export = ""){
-  tmp <- tibble()
-  for(filei in list.files(path = out_import, pattern = ".RData")){
-    load(filei)
-    tmp <- rbind(tmp, out)
-  }
-  out <- tmp
-  save(out, file=paste0(out_export,"out.Rdata"))
+
+make.rw.out <- function(end_testing_dates_start = as.Date("2015-01-01"),
+                        end_testing_dates_end = as.Date("2021-04-01"),
+                        week_n = seq(-10,22,by = 4 ), target = c('gdp_real','cons_real',
+                                                                 'invest_real',
+                                                                 'invest_fixed_capital_real', 'export_real', 'import_real',
+                                                                 'export_usd', 'import_usd')){
+  # Делает таблицу с результатам rw
+  load("data/stationary_data.Rdata")
   
+  out <- stat_data %>%
+    filter(variable %in% target,
+           h ==0) %>%
+    group_by(variable) %>%
+    mutate(y_pred = lag(value)) %>% 
+    select(-h) %>%
+    set_names(c('date', 'target', 'y_true', 'y_pred')) %>%
+    filter(date >= end_testing_dates_start, date <= end_testing_dates_end) %>%
+    ungroup
+  n <- nrow(out)
+  out <- do.call(rbind, replicate(length(week_n),out, simplify = FALSE))
   
+  out$week_n <- unlist(lapply(week_n,function(x){ rep(x, n)}))
+  out$model <- "rw"
+  out %>% filter(!(week_n==22)&(target %in%c('export_usd', 'import_usd')))
+  out
 }
+
+
+
+

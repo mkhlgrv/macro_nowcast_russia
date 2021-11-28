@@ -1,7 +1,3 @@
-# Берет эксель data/raw data/raw.xlsx с тремя листами (weekly, daily, quarterly) и преобразует каждый ряд в листе в стационарный
-# в соответствии с тем, как об этом написано в data/transformed/desc.xlsx
-library(dplyr)
-library(magrittr)
 
 stationarize.data<- function(desc_path="data/desc.xlsx",
                               import_path = "data/raw_data.xlsx",

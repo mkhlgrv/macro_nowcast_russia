@@ -16,7 +16,8 @@ run.job <- function(job_name = "Job 1",
                     seed = 123,
                     use_bot=TRUE,
                     send_all_messages = TRUE,
-                    out_path = "out/"){
+                    out_path = "out/",
+                    dates_to_remove = NULL){
   
   if(!is.null(date_sample)){
     if(length(date_sample)>length(end_training_dates)|
@@ -65,12 +66,12 @@ run.job <- function(job_name = "Job 1",
            
             train_datei <- end_training_dates[x$i]
             test_datei <- end_testing_dates[x$i]
-            print(test_datei)
             train.model(end_training_date = train_datei,
                         testing_date = test_datei,
                         model = x$model,
                         target = x$target,
-                        week_n = x$week_n) %>%
+                        week_n = x$week_n,
+                        dates_to_remove = x$dates_to_remove) %>%
               mutate(week_n = x$week_n,
                      model = x$model,
                      target = x$target,
