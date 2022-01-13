@@ -115,7 +115,6 @@ train.model <- function(model = 'rf',
   
   
   
-  
 
   train_n <- 1:(nrow(df)-1)
   test_n <- nrow(df)
@@ -131,27 +130,54 @@ train.model <- function(model = 'rf',
   y.test <- df$y[rep(test_n,2)] %>% as.numeric
   
   if(model %in% c('ar', 'arx')){
+    
+    if((target %in% c("export_usd", "import_usd") & week_n < 4)|
+       (target %in% c('cons_real',
+                      'invest_real',
+                      'invest_fixed_capital_real', 'export_real', 'import_real',
+                      "export_and_stocks") & week_n < 15)|
+       (target %in% c('gdp_real') & week_n < 11)){
+      ar_horizon <- 2 
+     X.train <- X.matrix[train_n-1,]
+     
+     X.test <- X.matrix[rep(test_n-1,2),]
+     
+     y.train <- df$y[train_n-1] %>% as.numeric
+    } else{
+      ar_horizon <- 1
+         }
+    
+    
     if(model == 'ar'){
       
+  
       
       model_fit <- forecast::auto.arima(y.train, 
                                         d=0, max.q = 0)
-      pred <- forecast::forecast(model_fit) %>%
+      pred <- forecast::forecast(model_fit, h = ar_horizon) %>%
         .$mean %>%
-        as.numeric()
+        as.numeric() %>%
+        .[length(.)]
       
       
       
     } else if(model == 'arx'){
+      
       model_fit <- forecast::auto.arima(y.train,
-                                        xreg = X.train[,which(colnames(X.train) %in% c("DCOILBRENTEU", "DCOILBRENTEU_lag"))],
+                                        xreg = X.train[,which(colnames(X.train) %in%
+                                                                c("DCOILBRENTEU", "DCOILBRENTEU_lag"))],
                                         d=0, max.q = 0)
       pred <- forecast::forecast(model_fit,
-                                 xreg = X.test[,which(colnames(X.test) %in% c("DCOILBRENTEU", "DCOILBRENTEU_lag"))]) %>%
+                                 xreg = X.test[,which(colnames(X.test) %in%
+                                                        c("DCOILBRENTEU", "DCOILBRENTEU_lag"))], h = ar_horizon) %>%
         .$mean %>%
-        as.numeric()
+        as.numeric() %>%
+        .[length(.)]
     }
-  } else{
+    
+    
+  }
+  else{
     if (model == 'rf'){
       
       model_fit <- randomForest(x = X.train,
@@ -319,29 +345,61 @@ train.model <- function(model = 'rf',
 
 make.rw.out <- function(end_testing_dates_start = as.Date("2015-01-01"),
                         end_testing_dates_end = as.Date("2021-04-01"),
-                        week_n = seq(-10,22,by = 4 ), target = c('gdp_real','cons_real',
-                                                                 'invest_real',
-                                                                 'invest_fixed_capital_real', 'export_real', 'import_real',
-                                                                 'export_usd', 'import_usd')){
+                        week_n = seq(-10,22,by = 4 ), 
+                        target = c('gdp_real','cons_real',
+                                   'invest_real',
+                                   'invest_fixed_capital_real', 'export_real', 'import_real',
+                                                                 'export_usd', 'import_usd', "export_and_stocks"),
+                        different_lag=FALSE){
   # Делает таблицу с результатам rw
   load("data/stationary_data.Rdata")
+  
   
   out <- stat_data %>%
     filter(variable %in% target,
            h ==0) %>%
     group_by(variable) %>%
-    mutate(y_pred = lag(value)) %>% 
+    mutate(y_pred = lag.xts(value, k = 1)) %>% 
     select(-h) %>%
     set_names(c('date', 'target', 'y_true', 'y_pred')) %>%
     filter(date >= end_testing_dates_start, date <= end_testing_dates_end) %>%
     ungroup
   n <- nrow(out)
-  out <- do.call(rbind, replicate(length(week_n),out, simplify = FALSE))
   
+  out <- do.call(rbind, replicate(length(week_n),out, simplify = FALSE))
   out$week_n <- unlist(lapply(week_n,function(x){ rep(x, n)}))
+  
+  if(different_lag){
+    out_2lag <- stat_data %>%
+      filter(variable %in% target,
+             h ==0) %>%
+      group_by(variable) %>%
+      mutate(y_pred = lag.xts(value, k = 2)) %>% 
+      select(-h) %>%
+      set_names(c('date', 'target', 'y_true', 'y_pred')) %>%
+      filter(date >= end_testing_dates_start, date <= end_testing_dates_end) %>%
+      ungroup
+    n <- nrow(out_2lag)
+    out_2lag <- do.call(rbind, replicate(length(week_n),out_2lag, simplify = FALSE))
+    out_2lag$week_n <- unlist(lapply(week_n,function(x){ rep(x, n)}))
+    out <- out %>% filter((target %in% c("export_usd", "import_usd") & week_n >= 4)|
+                    (target %in% c('cons_real',
+                                   'invest_real',
+                                   'invest_fixed_capital_real', 'export_real', 'import_real',
+                                    "export_and_stocks") & week_n >= 15)|
+                     (target %in% c('gdp_real') & week_n >= 11))
+    out_2lag <- out_2lag %>% filter((target %in% c("export_usd", "import_usd") & week_n <4)|
+                     (target %in% c('cons_real',
+                                    'invest_real',
+                                    'invest_fixed_capital_real', 'export_real', 'import_real',
+                                     "export_and_stocks") & week_n < 15)|
+                     (target %in% c('gdp_real') & week_n < 11))
+    out <- rbind(out,out_2lag)
+  }
+  
   out$model <- "rw"
-  out %>% filter(!(week_n==22)&(target %in%c('export_usd', 'import_usd')))
-  out
+  out %>% filter(!((week_n>=16)&(target %in%c('export_usd', 'import_usd'))))
+  
 }
 
 

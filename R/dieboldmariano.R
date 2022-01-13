@@ -1,18 +1,18 @@
 # Расчет значений теста ДМ
 make.dm.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Date("2021-04-01"), by = "quarter"),
-                          week_n_ = seq(-10,22,by = 4 ),
+                          week_n_ = c(-10, -6, -5, -2, 0, 2, 5, 6, 10, 14, 15, 18, 20, 22),
                           target = c('gdp_real','cons_real',
                                      'invest_real',
                                      'invest_fixed_capital_real', 'export_real', 'import_real',
                                      'export_usd', 'import_usd'),
-                          model_ = c('rf', 'boost','lasso', 'ridge',
+                          model_ = c('rf', 'boost','lasso', 'ridge',"elnet",
                                     "ar", "arx",
                                     'knn', 'svm', "bagging", 'rw')
 ){
   # Делает таблицу с результатами теста Диболда-Мариано
   
   df <- out %>%
-    mutate(forecastdate = zoo::as.Date(zoo::as.yearqtr(out$forecastdate))) %>%
+    mutate(forecastdate = zoo::as.Date(zoo::as.yearqtr(out$date))) %>%
     filter(forecastdate %in% end_testing_dates,
            week_n %in% week_n_,
            model %in% model_
@@ -63,7 +63,7 @@ make.dm.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Date(
                         model_1 = model_,
                         model_2 = model_,
                         stringsAsFactors = FALSE) %>%
-    filter(!(target %in% c('export_usd', 'import_usd')& week_n==22)
+    filter(!(target %in% c('export_usd', 'import_usd')& week_n>=18)
     ) %>%
     split(seq(1:nrow(.))) %>%
     map_dfr(function(x){
@@ -77,75 +77,47 @@ make.dm.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Date(
   
 }
 
+dm_res <- make.dm.table()
 
+# dm_res %>% filter(week_n %in% c(-6, 6, 14), model_1 != "elnet", model_2 != "elnet") %>%
+#   .[,c("target","week_n","model_1","model_2","dm_stat", "pvalue")] %>%
+#   mutate(pvalue = ifelse(pvalue>0.05, NA, 
+#                          ifelse(sign(dm_stat)==-1,
+#                                 paste0("-", round(pvalue,2)),
+#                                 paste0("+", round(pvalue,2))))) %>%
+#   select(-dm_stat) %>%
+#   mutate(model_1 = model_label_switch(model_1),
+#          model_2 = model_label_switch(model_2),
+#          target = target_rus_label_switch(target)) %>%
+#   dcast(week_n+target+model_1~model_2) %>% export("dm_test.xlsx")
 
-dm_res2 <- bind_cols(dm_res[,1:3] %>%
-                       magrittr::set_colnames(c('week_n', 'target', 'model'))%>%
-                       magrittr::set_colnames(c('week_n', 'target', 'model_1')),
-                     dm_res[,c(2,4)] %>%
-                       magrittr::set_colnames(c('target','model')) %>%
-                       select(2)%>%
-                       magrittr::set_colnames(c('model_2')),
-                     dm_res[,5:7]
-)
 # чем больше статистика диболда--- мариано, тем больше ошибки в первой модели
 # знаки поменяли местами, зеленый означает превосходство модели с наукастом, красный - без наукаста
 # на уровне значимости 5%
-dm_res2 %>%
-  na.omit %>%
-  # mutate(target = ifelse(target == 'gdp_real',
-  #                        'ВВП',
-  #                        ifelse(target == 'cons_real',
-  #                               'Потребление д/х',
-  #                               ifelse(target == 'import_real',
-  #                                      'Импорт', target)))) %>%
-  # mutate(target = ifelse(target == 'export_real',
-  #                        'Экспорт',
-  #                        ifelse(target == 'export_usd',
-  #                               'Экспорт (USD)',
-  #                               ifelse(target == 'import_usd',
-  #                                      'Импорт (USD)', target)))) %>%
-  # mutate(target = ifelse(target == 'invest_real',
-  #                        'Инвестиции совокупные',
-  #                        ifelse(target == 'invest_fixed_capital_real',
-  #                               'Инвестиции в осн-ой капитал',target))) %>%
-  # mutate(model_1 = ifelse(model_1 == 'elnet',
-  #                       'ЭC',
-  #                       ifelse(model_1 == 'rf',
-  #                              'СЛ',
-  #                              ifelse(model_1 == 'boost',
-  #                                     'Б', ifelse(model_1 == 'rw',
-  #                                                 'СБ',model_1))))) %>%
-  # mutate(model_2 = ifelse(model_2 == 'elnet',
-  #                       'ЭС',
-  #                       ifelse(model_2 == 'rf',
-  #                              'СЛ',
-  #                              ifelse(model_2 == 'boost',
-  #                                     'Б', ifelse(model_2 == 'rw',
-  #                                                 'СБ',model_2))))) %>%
-  arrange(model_1) %>%
-  # filter(grepl('В', predictor_group_1)&grepl('В', predictor_group_2)) %>%
-  #mutate(sign =ifelse(pvalue <= 0.05, ifelse( sign(dm_stat)==1,'green','red'), NA))  %>%
-  mutate(sign =ifelse(pvalue <= 0.05,
-                      ifelse(pvalue <= 0.025, ifelse( sign(dm_stat)==1,'darkgreen','darkred'),ifelse( sign(dm_stat)==1,'green','red') ), NA))  %>%
+dm_res %>%
+  arrange(model_1, model_2) %>%
+  filter(week_n %in% c(-10,0,10,20)) %>%
+  mutate(sign_color =ifelse(is.na(pvalue),"a",
+                      ifelse(pvalue <= 0.05,
+                      ifelse(pvalue <= 0.025,
+                             ifelse( sign(dm_stat)==1,
+                                     'darkgreen','darkred'),
+                             ifelse( sign(dm_stat)==1,'green','red') ), "a")),
+         model_1 = model_label_switch(model_1),
+         model_2 = model_label_switch(model_2),
+         target = target_rus_label_switch(target),
+         sign = ifelse(sign_color %in% c("green", "darkgreen"),
+                       "+",
+                       ifelse(sign_color %in% c("red", "darkred"), "-", ""))) %>%
+  filter(model_1<=model_2) %>%
   ggplot(aes(y = model_2, x = model_1))+
-  geom_tile(aes(fill = sign),show.legend = FALSE, color='grey')+
+  geom_tile(show.legend = FALSE, fill="#F8766D00", color = "grey")+
+  geom_text(aes(label=sign), size = 10)+
   facet_grid(week_n~target)+
   labs(y = '', x='')+
-  scale_fill_manual(values = c(#'darkgreen',
-    #'darkred' #,
-    '#71d466',
-    '#d9454d' ,
-    "#add1a9",
-    '#db696f' #,
-    #"#2bd918",
-    # '#d60f1a',
-    #'white'
-  ))+
   theme_minimal()+
   theme(legend.position="bottom",
         legend.title=element_blank(),
-        axis.text.y = element_text(size=8),
-        axis.text.x = element_text(angle = 90, size=8))
-
+        axis.text.y = element_text(size=12),
+        axis.text.x = element_text(angle = 90, size=12))
 

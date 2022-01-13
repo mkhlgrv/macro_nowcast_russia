@@ -1,17 +1,21 @@
 make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Date("2021-04-01"), by = "quarter"),
-                            week_n_ = seq(-10,22,by = 4 ),
+                            week_n_ = NULL,
                             target = c('gdp_real','cons_real',
                                        'invest_real',
                                        'invest_fixed_capital_real', 'export_real', 'import_real',
                                        'export_usd', 'import_usd'),
-                            model_ = c('rf', 'boost','lasso', 'ridge',
+                            model_ = c('rf', 'boost','lasso', 'ridge',"elnet",
                                        "ar", "arx",
                                        'knn', 'svm', "bagging", 'rw'),
                             relative_to_rw = TRUE,
                             export = FALSE,
                             export_path=NULL,
-                            cumulative_rmse = FALSE
+                            cumulative_rmse = FALSE,
+                            dcast = TRUE
                             ){
+  if(is.null(week_n_)){
+    week_n_ <- unique(out$week_n)
+  }
   df <- out %>%
     mutate(date = zoo::as.Date(zoo::as.yearqtr(out$date))) %>%
     filter(date %in% end_testing_dates,
@@ -35,7 +39,8 @@ make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Dat
     if(cumulative_rmse){
       value_to_join <- c(value_to_join, "date")
     }
-    
+
+    print(df)
     df_not_rw <- df %>% filter(model != "rw")
     df_rw <- df %>% filter(model == "rw")
     df <- df_not_rw %>%
@@ -44,11 +49,15 @@ make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Dat
                  suffix = c("", "_rw")) %>%
       mutate(rmse = rmse/rmse_rw) %>%
       select(-c(rmse_rw, model_rw))
+    print(df)
+  }
+  if(dcast){
+    df <- df %>% reshape2::dcast(target+week_n~model)
   }
   
   if(export&!is.null(export_path)){
     
-    rio::export(df %>% reshape2::dcast(target+week_n~model),
+    rio::export(df,
                 file = export_path)
   }
   df

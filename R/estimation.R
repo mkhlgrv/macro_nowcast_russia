@@ -8,105 +8,123 @@ source("R/lib.R")
 source("R/run_job.R")
 # run.job()
 source("R/utils.R")
-collect_jobs_out(out_import = "out/")
+collect_jobs_out(out_import = "out/",
+                 week_n = c(-10, -6, -5, -2, 0, 2, 5, 6, 10, 14, 15, 18, 20, 22),
+                 end_testing_dates= seq(as.Date("2015-01-01"),
+                                                             
+                                                             as.Date("2021-04-01"),
+                                                             by = "quarter"))
 load("out.Rdata")
 # make.dm.table(week_n = 22, model = c("rf", "boost"),
 #               end_testing_dates = seq(as.Date("2015-01-01"),
 #                                       as.Date("2020-04-01"), by = "quarter"))
 source("R/rmse.R")
-make.rmse.table(relative_to_rw=FALSE, week_n_ = c(-6,6, 18)) %>% reshape2::dcast(target+week_n~model) %>% na.omit
-model_group_switch <- Vectorize(vectorize.args = "x",
-                 FUN = function(x) {
-                   switch(x, "rf" = "ML",
-                          "boost" = "ML",
-                          "svm"="ML",
-                          "knn"="ML",
-                          "bagging"="ML",
-                          "lasso"="Reg",
-                          "ridge"="Reg",
-                          "elnet"="Reg",
-                          "ar"="AR",
-                          "arx"="AR",
-                          "rw"="AR")})
+make.rmse.table(relative_to_rw=TRUE,
+                week_n_ = c(-10,0,10,20),dcast=FALSE) %>%
+  mutate(model = model_label_switch(model),
+         target = target_rus_label_switch(target),
+         rmse = round(rmse, 2)) %>%
+  dcast(target+week_n~model) %>%
+  dplyr::rename(Переменная=target) %>%
+  export("tab_rmse.xlsx", overwrite = TRUE) # %>%.[.$target %in% c("export_and_stocks", "export_real","invest_real"),]
+make.rmse.table(end_testing_dates =seq(as.Date("2015-01-01"),as.Date("2019-01-01"), by = "quarter"),
+                relative_to_rw=TRUE,
+                week_n_ = c(-10,0,10,20),dcast=FALSE) %>%
+  mutate(model = model_label_switch(model),
+         target = target_rus_label_switch(target),
+         rmse = round(rmse, 2)) %>%
+  dcast(target+week_n~model) %>%
+  dplyr::rename(Переменная=target) %>%
+  export("tab_rmse_19.xlsx", overwrite = TRUE) 
+  
 
+library(hrbrthemes)
+cairo_pdf("plot/cumulative_rmse.pdf", width =10, height = 16)
+make.rmse.table(target = c('gdp_real','cons_real',
+                           'invest_real',
+                           'invest_fixed_capital_real', 'export_real', 'import_real',
+                           'export_usd', 'import_usd'),
+                relative_to_rw=FALSE,dcast = FALSE,cumulative_rmse = TRUE,
+                week_n_ = c(-10,0,10,20)) %>%
+  filter(target != "export_and_stocks", date >="2015-01-01") %>%
+  mutate(model_group = model_group_switch(model),
+         target = target_rus_label_switch(target),
+         facet_var = paste0(target, " (",week_n, ")")) %>%
 
-make.rmse.table(cumulative_rmse = TRUE, relative_to_rw = FALSE) %>%
-  filter( week_n %in% c(-10)) %>%
-  mutate(model_group = model_group_switch(model)) %>%
-  ggplot(aes(x = date,y=rmse, group = model, color = model_group))+
-  geom_line()+
-  facet_wrap(target~week_n, scales = "free_y")
+  ggplot(aes(x = date,y=rmse))+
+  stat_summary(
+    fun = min,
+    geom = "line",
+    linetype = 2
+  )+
+  stat_summary(
+    fun = max,
+    geom = "line",
+    linetype = 2
+  )+
+stat_summary(
+  fun = median, 
+  geom = "line"
+)+
+  facet_grid(target~week_n, scales="free_y")+
+  labs(y="RMSFE", x = "Дата")+
+  theme_minimal()+ theme(legend.position="bottom",
+                         legend.title=element_blank(),
+                         axis.text.y = element_text(size=12),
+                         axis.text.x = element_text(size=12))
+dev.off()
 
+cairo_pdf("plot/forecast.pdf", width =16, height = 14)
+out %>%
+  filter(date >= "2015-01-01", 
+         (target %in% c("cons_real")&model %in% c("svm"))
+         ) %>%
+  mutate(
+         model_group = model_group_switch(model),
+              target = target_rus_label_switch(target),
+              facet_var = paste0(target, " (",week_n,")"))  %>%
+  filter() %>%
+  ggplot()+
+  geom_segment(aes(x= date,
+                   xend = date+90,
+             y = y_true,
+             yend = y_true), color = "black",size=1)+
+  stat_summary(aes(x = date+900/32 + week_n*90/32,
+                   y = y_pred,
+                   group = date),
+    fun = min, 
+    geom = "line"
+  )+
+  stat_summary(aes(x = date+900/32 + week_n*90/32,
+                   y = y_pred,
+                   group = date),
+               fun = max, 
+               geom = "line"
+  )+
+  facet_wrap(vars(target), ncol = 1, scales = "free_y")+
+  theme_minimal()+
+  labs(x = "Дата", y = "Изменение")
+  scale_color_ft()
+dev.off()
 
-out %>% filter(date >= "2020-01-01")%>% ggplot(aes(x= date, y = y_true))+geom_point()
-# 
-# 
-# out %>% 
-#   #filter(date != '2020-04-03') %>%
-#   rbind(prevyear) %>%
-#   arrange(date) %>% 
-#  # filter(date != max(date)) %>%
-#   #filter(predictor_group=='non_financial') %>%
-#   group_by(week_n, model, target, predictor_group) %>% 
-#   mutate(direction_true = sign(y_true-lag.xts(y_true)),
-#          direction_pred = sign(y_pred-lag.xts(y_true)),
-#          error = abs(direction_true - direction_pred)/2) %>%  
-#    # summarise(rmse = sqrt(mean((y_true - y_pred)^2))) %>%
-#   summarise(rmse = mean(error, na.rm = TRUE)) %>%
-#   select(week_n, model, rmse, target, predictor_group) %>%
-#   dcast(target+week_n+predictor_group~model, value.var = 'rmse') %>% View#  export('chamber/rmse.xlsx')
-# 
-# out %>%  filter(#model == 'elnet',
-#          predictor_group=='All'
-#          , target %in% c('gdp_real')
-#          ) %>%
-#   dplyr::mutate(Неделя = ifelse(week_n==-4, '-4', ifelse(week_n==28, '28', '0-22'))) %>%
-#   #filter(date != max(date)) %>%
-#   ggplot(aes(x=date))+
-#   geom_line(aes(y = y_true))+
-#   geom_point(aes(y = y_true), size =2, alpha=0.5)+
-#   geom_point(aes(x=date+week_n-28,y = y_pred, color = Неделя), size =3)+
-#   geom_line(aes(x=date+week_n-28,y = y_pred,
-#                 group=interaction(date, predictor_group, model)))+
-#   labs(y = 'Изменение', x = 'Дата', title = '')+
-#   facet_grid(model~., scales = 'free_y')
-# 
-# out %>%
-#   filter(model == 'elnet',
-#          predictor_group=='All',
-#          target %in% c('cons_real')) %>%
-#   dplyr::mutate(Неделя = ifelse(week_n==-4, '-4', ifelse(week_n==28, '28', '0-22'))) %>%
-#   #filter(date != max(date)) %>%
-#   ggplot(aes(x=date))+
-#   geom_line(aes(y = y_true))+
-#   geom_point(aes(y = y_true), size =2, alpha=0.5)+
-#   geom_point(aes(x=date+week_n-28,y = y_pred, color = Неделя), size =3)+
-#   geom_line(aes(x=date+week_n-28,y = y_pred,
-#                 group=interaction(date, predictor_group, model)))+
-#   labs(y = 'Изменение', x = 'Дата', title = '')
-# # facet_wrap(vars(target), scales = 'free_y')
-# 
-# 
-# 
-# out %>%
-#   filter(model == 'elnet',
-#          predictor_group=='All',
-#          target %in% c('export_real')) %>%
-#   dplyr::mutate(Неделя = ifelse(week_n==-4, '-4', ifelse(week_n==28, '28', '0-22'))) %>%
-#   #filter(date != max(date)) %>%
-#   ggplot(aes(x=date))+
-#   geom_line(aes(y = y_true))+
-#   geom_point(aes(y = y_true), size =2, alpha=0.5)+
-#   geom_point(aes(x=date+week_n-28,y = y_pred, color = Неделя), size =3)+
-#   geom_line(aes(x=date+week_n-28,y = y_pred,
-#                 group=interaction(date, predictor_group, model)))+
-#   labs(y = 'Изменение', x = 'Дата', title = '')
-# 
-# 
-# res <- out %>% filter(model == 'rf',
-#                predictor_group=='All',
-#                target %in% c('gdp_real'), week_n == 20)
-# 
-# lm(y_true~y_pred,data = res) %>% summary
-# sqrt(mean((y_true[81:102]-y_true[80:101])^2))
-# sqrt(mean((y_true[81:101]-y_true[80:100])^2))
+cairo_pdf("plot/rmse.pdf", width =16, height = 14)
+
+make.rmse.table(relative_to_rw=FALSE,
+                week_n = c(-10, -6, -5, -2, 0, 2, 5, 6, 10, 14, 15, 18, 20, 22),
+                target = c('gdp_real','cons_real',
+                           'invest_real',
+                           'invest_fixed_capital_real', 'export_real', 'import_real',
+                           'export_usd', 'import_usd'),
+                dcast = FALSE) %>%
+  filter(target!="export_and_stocks") %>%
+  mutate(
+    model_group = model_group_switch(model),
+    target = target_rus_label_switch(target))  %>%
+
+  ggplot()+
+  stat_summary(aes(x=week_n, y = rmse, linetype=model_group),
+               fun = median, geom = "line", size = 0.8)+
+  facet_wrap(vars(target), ncol = 4, scales="free_y")+
+  labs(linetype="Группа\nмоделей", y = "RMSFE", x = TeX("Неделя"))+
+  theme_minimal()
+dev.off()
