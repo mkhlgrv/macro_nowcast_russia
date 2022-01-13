@@ -1,11 +1,18 @@
-Скопировать этот текст в терминал R
+# Скопировать этот текст в терминал R
 setwd("~/macro_nowcast_russia")
 source("R/run_job.R", encoding="utf-8")
-run.job(date_sample = c(1), use_bot=TRUE, job_name = "test job", send_all_messages = TRUE,model = "ar")
-# run.job(date_sample = c(1:26), use_bot=TRUE, job_name = "Boosting job", send_all_messages = TRUE,model = "boost")
-# run.job(date_sample = c(1:7), use_bot=TRUE, job_name = "All except boosting 1:7 job", send_all_messages = TRUE,model = c("rf", "lasso", "ridge","ar", "arx","knn", "svm", "bagging"))
-# run.job(date_sample = c(8:14), use_bot=TRUE, job_name = "All except boosting 8:14 job", send_all_messages = TRUE,model = c("rf", "lasso", "ridge","ar", "arx","knn", "svm", "bagging"))
-# run.job(date_sample = c(15:21), use_bot=TRUE, job_name = "All except boosting 15:21 job", send_all_messages = TRUE,model = c("rf", "lasso", "ridge","ar", "arx","knn", "svm", "bagging"))
-# run.job(date_sample = c(22:26), use_bot=TRUE, job_name = "All except boosting 22:26 job", send_all_messages = TRUE,model = c("rf", "lasso", "ridge","ar", "arx","knn", "svm", "bagging"))
-# run.job(date_sample = c(1:10), use_bot=TRUE, job_name = "Boosting lenovo job 1:10", send_all_messages = TRUE,model = "boost")
-# run.job(date_sample = c(11:20), use_bot=TRUE, job_name = "Boosting lenovo job 11:20", send_all_messages = TRUE,model = "boost")
+# run.job(date_sample = c(1), use_bot=TRUE, job_name = "test job", send_all_messages = TRUE,model = "ar")
+# # Это уже есть
+# run.job(date_sample = c(1:26),
+# out_path = "out/",
+# use_bot=TRUE, job_name ="All models job 1:26",
+# week_n = c(-10, -6, -5, -2, 0, 2, 5, 6, 10, 14, 15, 18, 20, 22),
+# send_all_messages = TRUE,
+# model = c("rf", "lasso", "ridge","elnet","ar", "arx","knn", "svm", "bagging"))
+# # Это план
+# run.job(date_sample = c(1:26),
+out_path = "out_other/",
+use_bot=TRUE, job_name ="All models job 1:26",
+week_n = c(-9,-8,-7, -4,-3, -1, 1, 3,4, 7,8,9, 11,12,13, 16,17,19,21),
+send_all_messages = TRUE,
+model = c("rf", "lasso", "ridge","elnet","ar", "arx","knn", "svm", "bagging", "boost"))
