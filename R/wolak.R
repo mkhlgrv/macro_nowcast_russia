@@ -9,7 +9,9 @@ wolak_test <-
                                      'invest_fixed_capital_real', 'export_real',
                                      'import_real',
                                      'export_usd',
-                                     'import_usd')) %>%
+                                     'import_usd'
+                            )
+    ) %>%
   split(seq(1:nrow(.))) %>%
 map_dfr(function(x){
   
@@ -17,23 +19,27 @@ map_dfr(function(x){
 
   pred_mat <- out %>%
     filter(model == x$model, target == x$target) %>%
-    mutate(
-      week_n = - week_n) %>%
+    mutate(week_n = -floor(week_n/5)) %>%
+    group_by(week_n, date) %>%
+    summarise(y_pred = mean(y_pred)) %>%
     dcast(date ~ week_n,value.var='y_pred') %>%
-    select(-date)
+    select(-date) * 100
   true_mat <- out %>%
     filter(model == x$model, target == x$target)%>%
-    mutate(
-      week_n = - week_n) %>%
+    mutate(week_n = -floor(week_n/5)) %>%
+    group_by(week_n, date) %>%
+    summarise(y_true = mean(y_true)) %>%
     dcast(date ~ week_n,value.var='y_true') %>%
-    select(-date)
+    select(-date) * 100
   max_h <- ncol(pred_mat)
   
   res1 <- res2 <- res3 <- NA
   try({
+    print(first(x$target))
+    print(first(x$model))
     # 1) Monotonicity of the Forecast Errors
     e2 <- (true_mat-pred_mat)^2
-    
+  
     temp <- e2[,2:(max_h)]-e2[,1:(max_h-1)]
     res1 <- wolak(temp, difference=TRUE)[1]
     
@@ -59,11 +65,13 @@ map_dfr(function(x){
   
 })
 
-# save(wolak_test,file =  "wolak_test.Rdata")
+save(wolak_test,file =  "wolak_test.Rdata")
 # '-' если нулевая гипотеза отвергается
 
 wolak_test %>%
   mutate(test_n = rep(c(1,2,3), 64)) %>%
+  mutate(model = as.character(model),
+         target = as.character(target)) %>%
   mutate(model = model_label_switch(model),
          target = target_rus_label_switch(target)) %>%
   arrange(model) %>%

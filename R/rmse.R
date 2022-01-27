@@ -11,7 +11,8 @@ make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Dat
                             export = FALSE,
                             export_path=NULL,
                             cumulative_rmse = FALSE,
-                            dcast = TRUE
+                            dcast = TRUE,
+                            by_ten = FALSE
                             ){
   if(is.null(week_n_)){
     week_n_ <- unique(out$week_n)
@@ -35,12 +36,18 @@ make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Dat
   }
   
   if(relative_to_rw){
+    if(by_ten){
+      df <- df %>% 
+        mutate(week_n = floor(week_n/10)) %>%
+        group_by(week_n, target, model) %>%
+        summarise(rmse = mean(rmse))
+    }
+    
     value_to_join <- c("target", "week_n")
     if(cumulative_rmse){
       value_to_join <- c(value_to_join, "date")
     }
 
-    print(df)
     df_not_rw <- df %>% filter(model != "rw")
     df_rw <- df %>% filter(model == "rw")
     df <- df_not_rw %>%
@@ -49,7 +56,6 @@ make.rmse.table <- function(end_testing_dates = seq(as.Date("2015-01-01"),as.Dat
                  suffix = c("", "_rw")) %>%
       mutate(rmse = rmse/rmse_rw) %>%
       select(-c(rmse_rw, model_rw))
-    print(df)
   }
   if(dcast){
     df <- df %>% reshape2::dcast(target+week_n~model)

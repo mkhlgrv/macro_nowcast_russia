@@ -81,7 +81,9 @@ run.job <- function(job_name = "Job 1",
         message_text <- paste0(Sys.time(),": ",
                                iter, "/", len)
         if(use_bot&send_all_messages){
+          try(
           bot$sendMessage(chat_id, text = paste0(job_name,": ", iter, "/", len))
+          )
         }
         message(message_text)
 
@@ -97,16 +99,16 @@ run.job <- function(job_name = "Job 1",
   
   if(use_bot){
     diff_time <- Sys.time()-st
-    
 
-    
+
+    try(
     bot$sendMessage(chat_id,
                     text = paste0(job_name, ": ","evaluation started at " ,format(st, format = "%H:%M:%S"),
                                   ", ended at ",
                                   format(Sys.time(), format = "%H:%M:%S")
                     ),
                     parse_mode = "Markdown"
-    )
+    ))
     try(bot$sendDocument(chat_id, document = log_file))
     
     
